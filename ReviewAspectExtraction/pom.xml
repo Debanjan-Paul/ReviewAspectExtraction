@@ -16,17 +16,17 @@
 			<version>3.6.0</version>
 			<classifier>models</classifier>
 		</dependency>
-<!-- 		<dependency> -->
-<!-- 			<groupId>edu.stanford.nlp</groupId> -->
-<!-- 			<artifactId>stanford-corenlp</artifactId> -->
-<!-- 			<version>3.6.0</version> -->
-<!-- 		</dependency> -->
-<!-- 		<dependency> -->
-<!-- 			<groupId>edu.stanford.nlp</groupId> -->
-<!-- 			<artifactId>stanford-corenlp</artifactId> -->
-<!-- 			<version>3.6.0</version> -->
-<!-- 			<classifier>models</classifier> -->
-<!-- 		</dependency> -->
+		<!-- <dependency> -->
+		<!-- <groupId>edu.stanford.nlp</groupId> -->
+		<!-- <artifactId>stanford-corenlp</artifactId> -->
+		<!-- <version>3.6.0</version> -->
+		<!-- </dependency> -->
+		<!-- <dependency> -->
+		<!-- <groupId>edu.stanford.nlp</groupId> -->
+		<!-- <artifactId>stanford-corenlp</artifactId> -->
+		<!-- <version>3.6.0</version> -->
+		<!-- <classifier>models</classifier> -->
+		<!-- </dependency> -->
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
@@ -38,4 +38,42 @@
 			<version>1.7.21</version>
 		</dependency>
 	</dependencies>
+	<build>
+		<plugins>
+
+			<!-- <plugin> -->
+			<!-- <groupId>org.apache.maven.plugins</groupId> -->
+			<!-- <artifactId>maven-jar-plugin</artifactId> -->
+			<!-- <configuration> -->
+			<!-- <archive> -->
+			<!-- <manifest> -->
+			<!-- <mainClass>com.main.ProductaspectExtraction</mainClass> -->
+			<!-- </manifest> -->
+			<!-- </archive> -->
+			<!-- </configuration> -->
+			<!-- </plugin> -->
+
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifest>
+							<mainClass>com.main.ProductaspectExtraction</mainClass>
+						</manifest>
+					</archive>
+					<descriptorRefs>
+						<descriptorRef>jar-with-dependencies</descriptorRef>
+					</descriptorRefs>
+				</configuration>
+			</plugin>
+		</plugins>
+		<resources>
+			<resource>
+				<directory>.</directory>
+				<includes>
+					<include>tagger/*</include>
+				</includes>
+			</resource>
+		</resources>
+	</build>
 </project>

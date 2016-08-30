@@ -31,6 +31,7 @@ import edu.stanford.nlp.trees.TypedDependency;
 public class ProductaspectExtraction {
 	
 		public static void main(String args[]) throws IOException{
+			
 			int negPol=1;
 			//String parserModel = "E:\\work\\workspace1\\ReviewAspectExtraction\\depParser\\englishPCFG.ser";
 			String parserModel = "edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz";
@@ -44,7 +45,8 @@ public class ProductaspectExtraction {
 			HashMap<String,Integer> opDict = new HashMap<String,Integer>();
 			HashMap<String,Integer> opDict1 = new HashMap<String,Integer>();
 			
-			String path="E:\\work\\Deepanshu\\positive.txt"; //Set the path for "postive.txt" file for initial positive opinion words
+			//String path="E:\\work\\Deepanshu\\positive.txt"; //Set the path for "postive.txt" file for initial positive opinion words
+			String path=args[0];
 			BufferedReader inp= new BufferedReader(new FileReader(path));
 			
 			String sCurrentLine1;
@@ -53,7 +55,8 @@ public class ProductaspectExtraction {
 				sCurrentLine1=sCurrentLine1.toLowerCase();
 				opDict.put(sCurrentLine1,1);
 			}
-			path="E:\\work\\Deepanshu\\negative.txt"; //Set the path for "negative.txt" file for initial negative opinion words
+			//path="E:\\work\\Deepanshu\\negative.txt"; //Set the path for "negative.txt" file for initial negative opinion words
+			path=args[1];
 			BufferedReader inp1= new BufferedReader(new FileReader(path));
 			
 			String sCurrentLine2;
@@ -72,7 +75,8 @@ public class ProductaspectExtraction {
 		chkflag1=0;chkflag2=0;chkflag3=0;chkflag4=0;chkflag5=0;chkflag6=0;chkflag7=0;chkflag8=0;	
 		feature1=new HashMap<String,Integer>();
 		opDict1=new HashMap<String,Integer>();
-		String str="E:\\work\\Deepanshu\\Video_Game_Input\\B00006409P.txt";  //Set the path for correctly formatted review data file. 
+		//String str="E:\\work\\Deepanshu\\nowInput\\sample.txt";  //Set the path for correctly formatted review data file. 
+		String str=args[2];
 		BufferedReader in= new BufferedReader(new FileReader(str));
 		//start Preprocessing
 		String sCurrentLine;
@@ -81,6 +85,7 @@ public class ProductaspectExtraction {
 		int reviewid=0;
 		while((sCurrentLine = in.readLine()) != null){
 			reviewid++;
+			System.out.println(reviewid);
 			String overall=sCurrentLine.substring(sCurrentLine.indexOf(',')+1, sCurrentLine.indexOf(',', sCurrentLine.indexOf(',')+1));
 			int score=Integer.parseInt(overall.substring(0, overall.indexOf('.')));
 			int POLVAL=0;
@@ -102,6 +107,8 @@ public class ProductaspectExtraction {
 			}
 			processedreviewText+=reviewText.charAt(i);
 			processedreviewText=processedreviewText.toLowerCase();////text after removing multiple dots + all lower case
+			processedreviewText=processedreviewText.replace(":o)", " ");processedreviewText=processedreviewText.replace(":-)", " ");
+			processedreviewText=processedreviewText.replace(";-)", " ");
 			processedreviewText=processedreviewText.replace('_',' ');
 			
 			System.out.println("New="+processedreviewText);
@@ -119,6 +126,7 @@ public class ProductaspectExtraction {
 			   System.out.println("Review Sentence="+sentence);
 			   String word[]=sentence.split(" ");    //1)Word tokenization
 			   String wordPOS[]=new String[word.length];
+			   System.out.println(wordPOS.length);
 			  for(i=0;i<word.length;i++)
 			  System.out.print(word[i]+" ");
 			    
@@ -936,8 +944,8 @@ else{
 	}while( chkflag1==1 || chkflag2==1 || chkflag3==1 || chkflag5==1 || chkflag6==1 || chkflag7==1  );
 	///
 	int gg=0;String content;
-	File file = new File("E:\\work\\Deepanshu\\Video_Game_Output\\initialFeatures.txt");
-
+	//File file = new File("E:\\work\\Deepanshu\\Video_Game_Output/initialFeatures.txt");
+	File file = new File("../output/initialFeatures.txt");
 	// if file doesnt exists, then create it
 	if (!file.exists()) {
 		file.createNewFile();
@@ -962,7 +970,8 @@ else{
 	//feature freq
 	
 	HashMap<String,Integer> featureFreq=new HashMap<String,Integer>();
-	String str="E:\\work\\Deepanshu\\Video_Game_Input\\B00006409P.txt";
+	//String str="E:\\work\\Deepanshu\\nowInput\\sample.txt";
+	String str=args[2];
 	BufferedReader in= new BufferedReader(new FileReader(str));
 	//start Preprocessing
 	String sCurrentLine;
@@ -1098,8 +1107,8 @@ else{
 	}
 	
 	gg=0;
-	 file = new File("E:\\work\\Deepanshu\\Video_Game_Output\\Freq_Feature.txt");
-
+	// file = new File("E:\\work\\Deepanshu\\Video_Game_Output\\Freq_Feature.txt");
+	file=new File("../output/Freq_Feature.txt");
 	// if file doesnt exists, then create it
 	if (!file.exists()) {
 		file.createNewFile();
@@ -1123,8 +1132,8 @@ else{
 		
 	
 		gg=0;
-		file = new File("E:\\work\\Deepanshu\\Video_Game_Output\\opine3.txt");
-
+		//file = new File("E:\\work\\Deepanshu\\Video_Game_Output\\opine3.txt");
+		file = new File("../output/opine3.txt");
 		// if file doesnt exists, then create it
 		if (!file.exists()) {
 			file.createNewFile();
@@ -1169,7 +1178,8 @@ else{
 		
 		
 		
-		 str="E:\\work\\Deepanshu\\Video_Game_Output\\FinalFeature.txt";
+		// str="E:\\work\\Deepanshu\\Video_Game_Output\\FinalFeature.txt";
+		str="../output/FinalFeature.txt";
 		FileWriter fr= new FileWriter(str);
 		BufferedWriter out = new BufferedWriter(fr);
 		 i=0;
@@ -1199,8 +1209,8 @@ else{
 		
 		
 		
-		String str5="E:\\work\\Deepanshu\\Video_Game_Output\\annote.txt";
-
+		//String str5="E:\\work\\Deepanshu\\Video_Game_Output\\annote.txt";
+		String str5="../output/annote.txt";
 		// if file doesnt exists, then create it
 		
 		fw = new FileWriter(str5);
