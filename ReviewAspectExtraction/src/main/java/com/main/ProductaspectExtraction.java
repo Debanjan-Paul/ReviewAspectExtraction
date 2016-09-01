@@ -46,7 +46,7 @@ public class ProductaspectExtraction {
 			HashMap<String,Integer> opDict1 = new HashMap<String,Integer>();
 			
 			//String path="E:\\work\\Deepanshu\\positive.txt"; //Set the path for "postive.txt" file for initial positive opinion words
-			String path=args[0];
+		    String path=args[0];
 			BufferedReader inp= new BufferedReader(new FileReader(path));
 			
 			String sCurrentLine1;
@@ -75,7 +75,7 @@ public class ProductaspectExtraction {
 		chkflag1=0;chkflag2=0;chkflag3=0;chkflag4=0;chkflag5=0;chkflag6=0;chkflag7=0;chkflag8=0;	
 		feature1=new HashMap<String,Integer>();
 		opDict1=new HashMap<String,Integer>();
-		//String str="E:\\work\\Deepanshu\\nowInput\\sample.txt";  //Set the path for correctly formatted review data file. 
+		//String str="E:\\work\\Deepanshu\\nowInput\\nu/sample4.txt";  //Set the path for correctly formatted review data file. 
 		String str=args[2];
 		BufferedReader in= new BufferedReader(new FileReader(str));
 		//start Preprocessing
@@ -110,6 +110,7 @@ public class ProductaspectExtraction {
 			processedreviewText=processedreviewText.replace(":o)", " ");processedreviewText=processedreviewText.replace(":-)", " ");
 			processedreviewText=processedreviewText.replace(";-)", " ");
 			processedreviewText=processedreviewText.replace('_',' ');
+			processedreviewText=processedreviewText.replace('-',' ');
 			
 			System.out.println("New="+processedreviewText);
 			//split each review into its constituent sentences
@@ -970,7 +971,7 @@ else{
 	//feature freq
 	
 	HashMap<String,Integer> featureFreq=new HashMap<String,Integer>();
-	//String str="E:\\work\\Deepanshu\\nowInput\\sample.txt";
+	//String str="E:\\work\\Deepanshu\\nowInput\\nu/B000RK3BO0.txt";
 	String str=args[2];
 	BufferedReader in= new BufferedReader(new FileReader(str));
 	//start Preprocessing
@@ -1000,7 +1001,10 @@ else{
 		}
 		processedreviewText+=reviewText.charAt(i);
 		processedreviewText=processedreviewText.toLowerCase();////text after removing multiple dots + all lower case
+		processedreviewText=processedreviewText.replace(":o)", " ");processedreviewText=processedreviewText.replace(":-)", " ");
+		processedreviewText=processedreviewText.replace(";-)", " ");
 		processedreviewText=processedreviewText.replace('_',' ');
+		processedreviewText=processedreviewText.replace('-',' ');
 		
 		System.out.println("New="+processedreviewText);
 		//split each review into its constituent sentences
