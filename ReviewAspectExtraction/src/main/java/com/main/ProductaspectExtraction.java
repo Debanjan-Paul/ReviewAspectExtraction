@@ -45,7 +45,7 @@ public class ProductaspectExtraction {
 			HashMap<String,Integer> opDict = new HashMap<String,Integer>();
 			HashMap<String,Integer> opDict1 = new HashMap<String,Integer>();
 			
-			//String path="E:\\work\\Deepanshu\\positive.txt"; //Set the path for "postive.txt" file for initial positive opinion words
+			///String path="E:\\work\\Deepanshu\\positive.txt"; //Set the path for "postive.txt" file for initial positive opinion words
 		    String path=args[0];
 			BufferedReader inp= new BufferedReader(new FileReader(path));
 			
