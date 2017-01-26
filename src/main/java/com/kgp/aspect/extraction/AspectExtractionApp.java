@@ -6,6 +6,8 @@ import edu.stanford.nlp.ling.Sentence;
 import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
 import edu.stanford.nlp.process.DocumentPreprocessor;
 import edu.stanford.nlp.tagger.maxent.MaxentTagger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -19,15 +21,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class AspectExtractionApp {
+    private static final Logger logger = LoggerFactory.getLogger(AspectExtractionApp.class);
 
     public static void main(String args[]) throws IOException {
 
-        int negPol = 1;
-        //String parserModel = "E:\\work\\workspace1\\ReviewAspectExtraction\\depParser\\englishPCFG.ser";
-        String parserModel = "edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz";
-        LexicalizedParser lp = LexicalizedParser.loadModel(parserModel);
+        logger.info("Starting main");
 
-        DependencyParserImp ob = new DependencyParserImp(); //Object created for Dependency Parser class.
+
+        int negPol = 1;
+        String parserModel = "edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz";
+        LexicalizedParser lexicalizedParser = LexicalizedParser.loadModel(parserModel);
+
+        DependencyParserImp dependencyParser = new DependencyParserImp(); //Object created for Dependency Parser class.
 
         //opinion dictionary->array List whose each element is an array...each array's 1st cell is opinion word.2nd cell is its polarity
 
@@ -158,7 +163,7 @@ public class AspectExtractionApp {
                         System.out.print(wordPOS[i] + " ");
 
                     //Dependency Parsing
-                    String dep = ob.demoAPI(lp, word);
+                    String dep = dependencyParser.demoAPI(lexicalizedParser, word);
                     System.out.println("DEP=" + dep);
 
                     int spacecount = 0;
