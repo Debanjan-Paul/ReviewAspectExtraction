@@ -71,13 +71,5 @@
 				</configuration>
 			</plugin>
 		</plugins>
-		<resources>
-			<resource>
-				<directory>.</directory>
-				<includes>
-					<include>tagger/*</include>
-				</includes>
-			</resource>
-		</resources>
 	</build>
 </project>

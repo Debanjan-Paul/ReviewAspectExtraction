@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class AspectExtractionApp {
-    private static final Logger logger                = LoggerFactory.getLogger(AspectExtractionApp.class);
+    private static final Logger logger = LoggerFactory.getLogger(AspectExtractionApp.class);
 
     private static final String POSITIVE_OPINION_FILE = "/positive.txt";
     private static final String NEGATIVE_OPINION_FILE = "/negative.txt";
@@ -41,14 +41,14 @@ public class AspectExtractionApp {
         String negativeOpinionFilePath = inputDirPath + NEGATIVE_OPINION_FILE;
         String reviewsFilePath = inputDirPath + REVIEWS_FILE;
 
-        HashMap<String, Integer> opinionToPolarityMap1 = new HashMap<String, Integer>();
+        HashMap<String, Integer> opinionToPolarityMap1 = new HashMap<>();
         updateOpinions(positiveOpinionFilePath, opinionToPolarityMap1, 1);
         updateOpinions(negativeOpinionFilePath, opinionToPolarityMap1, -1);
 
         HashMap<String, Integer> opinionToPolarityMap2;
-        HashMap<String, Integer> featureToCountMap1 = new HashMap<String, Integer>();
+        HashMap<String, Integer> featureToCountMap1 = new HashMap<>();
         HashMap<String, Integer> featureToCountMap2;
-        ArrayList<String> annote = new ArrayList<String>();
+        ArrayList<String> annote = new ArrayList<>();
 
         int negPol;
         int epoch = 0;
@@ -56,8 +56,8 @@ public class AspectExtractionApp {
             resetFlags();
 
             // Reset featureMap2 and opinionMap2
-            featureToCountMap2 = new HashMap<String, Integer>();
-            opinionToPolarityMap2 = new HashMap<String, Integer>();
+            featureToCountMap2 = new HashMap<>();
+            opinionToPolarityMap2 = new HashMap<>();
 
             String line;
             int i;
@@ -69,29 +69,24 @@ public class AspectExtractionApp {
                 logger.info("Processing Review: {}, line: {}", reviewIndex, line);
 
                 int reviewPolarity = getReviewPolarity(reviewIndex, line);
+
                 String rawReviewText = getReviewText(line, reviewIndex);
                 String reviewText = getProcessedReviewText(reviewIndex, rawReviewText);
+                ArrayList<String> sentenceList = getSentenceList(reviewText);
 
-                // Split each review into its constituent sentences
-                Reader reader = new StringReader(reviewText);
-                DocumentPreprocessor dp = new DocumentPreprocessor(reader);
-                ArrayList<String> sentenceList = new ArrayList<String>();
-
-                for (java.util.List<HasWord> sentence : dp) {
-                    String sentenceString = Sentence.listToString(sentence);
-                    sentenceList.add(sentenceString.toString());
-                }
-                //for each sentence---1)Word tokenization 2)POS Tag 3) wordPOS array
+                // For each sentence:
+                //      1) Word tokenization
+                //      2) POS Tag
+                //      3) Word-POS array
                 for (String sentence : sentenceList) {
-                    System.out.println("Review Sentence=" + sentence);
-                    String word[] = sentence.split(" ");    //1)Word tokenization
-                    String wordPOS[] = new String[word.length];
-                    System.out.println(wordPOS.length);
-                    for (i = 0; i < word.length; i++)
-                        System.out.print(word[i] + " ");
+                    logger.info("Review Sentence: {}", sentence);
 
-                    //Tag the sentence
-                    MaxentTagger tagger = new MaxentTagger("tagger/english-bidirectional-distsim.tagger");//
+                    // 1) Word tokenization
+                    String word[] = sentence.split(" ");
+                    String wordPOS[] = new String[word.length];
+
+                    // Tag the sentence
+                    MaxentTagger tagger = new MaxentTagger("tagger/english-bidirectional-distsim.tagger");
                     String tagged = tagger.tagString(sentence);
                     System.out.println(tagged);
                     int flag = 0;
@@ -443,7 +438,7 @@ public class AspectExtractionApp {
                                             if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
                                                 if (opinionToPolarityMap2.containsKey(tword)) {
                                                   /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
-										          opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
+                                                  opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
                                                 } else {
 
                                                     Integer value = (Integer) opinionToPolarityMap1.get(name);
@@ -910,16 +905,7 @@ public class AspectExtractionApp {
 
                     opinionToPolarityMap2 = new HashMap<String, Integer>();
                     //end of Rule 2.2
-
-
-                    //break;//sentence break at single review
-
-
                 }
-
-
-                //break;//review break
-
             }
             epoch++;
         } while (flag1 == 1 || flag2 == 1 || flag3 == 1 || flag4 == 1 || flag5 == 1 || flag6 == 1);
@@ -1209,6 +1195,14 @@ public class AspectExtractionApp {
         bw.close();
 
 
+    }
+
+    private ArrayList<String> getSentenceList(String reviewText) {
+        // Split each review into its constituent sentences
+        ArrayList<String> sentenceList = new ArrayList<>();
+        new DocumentPreprocessor(new StringReader(reviewText))
+                .forEach(sentence -> sentenceList.add(Sentence.listToString(sentence)));
+        return sentenceList;
     }
 
     /**
