@@ -48,8 +48,9 @@ public class AspectExtractionApp {
         HashMap<String, Integer> opinionToPolarityMap2;
         HashMap<String, Integer> featureToCountMap1 = new HashMap<String, Integer>();
         HashMap<String, Integer> featureToCountMap2;
-        ArrayList<String> annote = new ArrayList<>();
+        ArrayList<String> annote = new ArrayList<String>();
 
+        int negPol;
         int epoch = 0;
         do {
             resetFlags();
