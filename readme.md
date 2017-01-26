@@ -19,6 +19,18 @@ Output:
 * Output file will be generated in the same directory with file-name: aspects.txt
 * eg: `./scripts/run.sh /home/user1/data/mobile`
 
+# Run with IntellijIdea:
+
+    - `cd <project-root>`
+    - mvn clean install assembly:single
+    - mvn idea:idea
+    - Run > Edit Configurations > Add new configuration(click on + icon) > Application
+        - Name: AspectExtraction
+        - MainClass: com.kgp.aspect.extraction.AspectExtractionApp
+        - Program Arguments: <path of input directory> (eg: /Users/user-1/data/mobile)
+        - Working Dir: <path to git root (ReviewAspectExtraction)>
+        - Classpath of module: ReviewAspectExtraction
+        - Check the top right box (single instance only), [this will avoid accidental multiple startups]
 
 ## Note:
 
