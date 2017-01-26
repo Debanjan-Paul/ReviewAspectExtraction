@@ -20,107 +20,59 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class AspectExtractionApp {
-    private static final Logger logger = LoggerFactory.getLogger(AspectExtractionApp.class);
+    private static final Logger logger                = LoggerFactory.getLogger(AspectExtractionApp.class);
+
+    private static final String POSITIVE_OPINION_FILE = "/positive.txt";
+    private static final String NEGATIVE_OPINION_FILE = "/negative.txt";
+    private static final String REVIEWS_FILE          = "/sample.txt";
 
     private DependencyParserImp dependencyParser = new DependencyParserImp();
+    private int flag1, flag2, flag3, flag4, flag5, flag6;
 
     public static void main(String[] args) throws IOException {
         new AspectExtractionApp().run(args);
     }
 
     public void run(String args[]) throws IOException {
-        String directoryPath = args[0];
-        logger.info("Starting application. dir-path: {}", directoryPath);
+        String inputDirPath = args[0];
+        logger.info("Starting application. dir-path: {}", inputDirPath);
 
-        int negPol = 1;
+        String positiveOpinionFilePath = inputDirPath + POSITIVE_OPINION_FILE;
+        String negativeOpinionFilePath = inputDirPath + NEGATIVE_OPINION_FILE;
+        String reviewsFilePath = inputDirPath + REVIEWS_FILE;
 
-        //opinion dictionary->array List whose each element is an array...each array's 1st cell is opinion word.2nd cell is its polarity
+        HashMap<String, Integer> opinionToPolarityMap1 = new HashMap<String, Integer>();
+        updateOpinions(positiveOpinionFilePath, opinionToPolarityMap1, 1);
+        updateOpinions(negativeOpinionFilePath, opinionToPolarityMap1, -1);
 
-        //String opWord[]=new String[2];
-        HashMap<String, Integer> opDict = new HashMap<String, Integer>();
-        HashMap<String, Integer> opDict1 = new HashMap<String, Integer>();
+        HashMap<String, Integer> opinionToPolarityMap2;
+        HashMap<String, Integer> featureToCountMap1 = new HashMap<String, Integer>();
+        HashMap<String, Integer> featureToCountMap2;
+        ArrayList<String> annote = new ArrayList<>();
 
-        ///String path="E:\\work\\Deepanshu\\positive.txt"; //Set the path for "postive.txt" file for initial positive opinion words
-        String path = args[0];
-        BufferedReader inp = new BufferedReader(new FileReader(path));
-
-        String sCurrentLine1;
-        while ((sCurrentLine1 = inp.readLine()) != null) {
-            sCurrentLine1 = sCurrentLine1.trim();
-            sCurrentLine1 = sCurrentLine1.toLowerCase();
-            opDict.put(sCurrentLine1, 1);
-        }
-        //path="E:\\work\\Deepanshu\\negative.txt"; //Set the path for "negative.txt" file for initial negative opinion words
-        path = args[1];
-        BufferedReader inp1 = new BufferedReader(new FileReader(path));
-
-        String sCurrentLine2;
-        while ((sCurrentLine2 = inp1.readLine()) != null) {
-            sCurrentLine2 = sCurrentLine2.trim();
-            sCurrentLine2 = sCurrentLine2.toLowerCase();
-            opDict.put(sCurrentLine2, -1);
-        }
-        HashMap<String, Integer> feature = new HashMap<String, Integer>();
-        HashMap<String, Integer> feature1 = new HashMap<String, Integer>();
-        ArrayList<String> annote = new ArrayList<String>();
-        int chkflag1 = 0, chkflag2 = 0, chkflag3 = 0, chkflag4 = 0, chkflag5 = 0, chkflag6 = 0, chkflag7 = 0, chkflag8 = 0;
-        int loopiter = 0;
-        //take input form a particular file
+        int epoch = 0;
         do {
-            chkflag1 = 0;
-            chkflag2 = 0;
-            chkflag3 = 0;
-            chkflag4 = 0;
-            chkflag5 = 0;
-            chkflag6 = 0;
-            chkflag7 = 0;
-            chkflag8 = 0;
-            feature1 = new HashMap<String, Integer>();
-            opDict1 = new HashMap<String, Integer>();
-            //String str="E:\\work\\Deepanshu\\nowInput\\nu/sample4.txt";  //Set the path for correctly formatted review data file.
-            String str = args[2];
-            BufferedReader in = new BufferedReader(new FileReader(str));
-            //start Preprocessing
-            String sCurrentLine;
-            int i = 0;
+            resetFlags();
 
-            int reviewid = 0;
-            while ((sCurrentLine = in.readLine()) != null) {
-                reviewid++;
-                System.out.println(reviewid);
-                String overall = sCurrentLine.substring(sCurrentLine.indexOf(',') + 1, sCurrentLine.indexOf(',', sCurrentLine.indexOf(',') + 1));
-                int score = Integer.parseInt(overall.substring(0, overall.indexOf('.')));
-                int POLVAL = 0;
-                if (score >= 3) {
-                    POLVAL = 1;
-                } else {
-                    POLVAL = -1;
-                }
-                System.out.println("OVERALL=" + score + "END");
-                String reviewText = sCurrentLine.substring(sCurrentLine.indexOf(',', sCurrentLine.indexOf(',') + 1) + 1);
-                System.out.println(overall + "%" + reviewText);
-                String processedreviewText = new String();
-                ;
-                //remove multiple dots
-                for (i = 0; i < reviewText.length() - 1; i++) {
-                    if (reviewText.charAt(i) == '.' && reviewText.charAt(i + 1) == '.') {
-                        continue;
-                    } else {
-                        processedreviewText += reviewText.charAt(i);
-                    }
+            // Reset featureMap2 and opinionMap2
+            featureToCountMap2 = new HashMap<String, Integer>();
+            opinionToPolarityMap2 = new HashMap<String, Integer>();
 
-                }
-                processedreviewText += reviewText.charAt(i);
-                processedreviewText = processedreviewText.toLowerCase();////text after removing multiple dots + all lower case
-                processedreviewText = processedreviewText.replace(":o)", " ");
-                processedreviewText = processedreviewText.replace(":-)", " ");
-                processedreviewText = processedreviewText.replace(";-)", " ");
-                processedreviewText = processedreviewText.replace('_', ' ');
-                processedreviewText = processedreviewText.replace('-', ' ');
+            String line;
+            int i;
+            int reviewIndex = 0;
 
-                System.out.println("New=" + processedreviewText);
-                //split each review into its constituent sentences
-                Reader reader = new StringReader(processedreviewText);
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(reviewsFilePath));
+            while ((line = bufferedReader.readLine()) != null) {
+                reviewIndex++;
+                logger.info("Processing Review: {}, line: {}", reviewIndex, line);
+
+                int reviewPolarity = getReviewPolarity(reviewIndex, line);
+                String rawReviewText = getReviewText(line, reviewIndex);
+                String reviewText = getProcessedReviewText(reviewIndex, rawReviewText);
+
+                // Split each review into its constituent sentences
+                Reader reader = new StringReader(reviewText);
                 DocumentPreprocessor dp = new DocumentPreprocessor(reader);
                 ArrayList<String> sentenceList = new ArrayList<String>();
 
@@ -211,7 +163,7 @@ public class AspectExtractionApp {
 
                     //Rule R1.1
 
-                    for (String name : opDict.keySet()) {
+                    for (String name : opinionToPolarityMap1.keySet()) {
                         String key = name.toString();
                         // System.out.println(op[0]);
                         for (int posi = 0; posi < word.length; posi++) {
@@ -228,12 +180,12 @@ public class AspectExtractionApp {
                                                 if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                     tword = tword + " " + word[loopi + 1];
                                                 }
-                                                if (feature.containsKey(tword)) {
-                                                    Integer counter = ((Integer) feature.get(tword));
-                                                    feature.put(tword, new Integer(counter + 1));
+                                                if (featureToCountMap1.containsKey(tword)) {
+                                                    Integer counter = ((Integer) featureToCountMap1.get(tword));
+                                                    featureToCountMap1.put(tword, new Integer(counter + 1));
                                                 } else {
-                                                    feature.put(tword, 1);
-                                                    chkflag1 = 1;
+                                                    featureToCountMap1.put(tword, 1);
+                                                    flag1 = 1;
                                                 }
                                                 negPol = 1;
                                                 for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
@@ -241,9 +193,9 @@ public class AspectExtractionApp {
                                                         negPol = -1;
                                                     }
 
-                                                Integer val = negPol * ((Integer) opDict.get(key));
+                                                Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
                                                 String annt = new String();
-                                                annt = reviewid + "@" + tword + "@" + Integer.toString(val);
+                                                annt = reviewIndex + "@" + tword + "@" + Integer.toString(val);
                                                 if (annote.contains(annt)) {
 
                                                 } else {
@@ -265,12 +217,12 @@ public class AspectExtractionApp {
                                                 if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                     tword = tword + " " + word[loopi + 1];
                                                 }
-                                                if (feature.containsKey(tword)) {
-                                                    Integer counter = ((Integer) feature.get(tword));
-                                                    feature.put(tword, new Integer(counter + 1));
+                                                if (featureToCountMap1.containsKey(tword)) {
+                                                    Integer counter = ((Integer) featureToCountMap1.get(tword));
+                                                    featureToCountMap1.put(tword, new Integer(counter + 1));
                                                 } else {
-                                                    feature.put(tword, 1);
-                                                    chkflag1 = 1;
+                                                    featureToCountMap1.put(tword, 1);
+                                                    flag1 = 1;
                                                 }
 
                                                 negPol = 1;
@@ -280,9 +232,9 @@ public class AspectExtractionApp {
                                                     }
 
 
-                                                Integer val = negPol * ((Integer) opDict.get(key));
+                                                Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
                                                 String annt = new String();
-                                                annt = reviewid + "@" + tword + "@" + Integer.toString(val);
+                                                annt = reviewIndex + "@" + tword + "@" + Integer.toString(val);
                                                 if (annote.contains(annt)) {
 
                                                 } else {
@@ -302,7 +254,7 @@ public class AspectExtractionApp {
 
                     //Rule R1.2
 
-                    for (String name : opDict.keySet()) {
+                    for (String name : opinionToPolarityMap1.keySet()) {
                         String key = name.toString();
                         // System.out.println(op[0]);
                         for (int posi = 0; posi < word.length; posi++) {
@@ -324,21 +276,21 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature.get(tword2));
-                                                            feature.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap1.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap1.get(tword2));
+                                                            featureToCountMap1.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature.put(tword2, 1);
-                                                            chkflag2 = 1;
+                                                            featureToCountMap1.put(tword2, 1);
+                                                            flag2 = 1;
                                                         }
                                                         negPol = 1;
                                                         for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
                                                             if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
-                                                        Integer val = negPol * ((Integer) opDict.get(key));
+                                                        Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(val);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(val);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -360,21 +312,21 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature.get(tword2));
-                                                            feature.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap1.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap1.get(tword2));
+                                                            featureToCountMap1.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature.put(tword2, 1);
-                                                            chkflag2 = 1;
+                                                            featureToCountMap1.put(tword2, 1);
+                                                            flag2 = 1;
                                                         }
                                                         negPol = 1;
                                                         for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
                                                             if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
-                                                        Integer val = negPol * ((Integer) opDict.get(key));
+                                                        Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(val);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(val);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -403,21 +355,21 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature.get(tword2));
-                                                            feature.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap1.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap1.get(tword2));
+                                                            featureToCountMap1.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature.put(tword2, 1);
-                                                            chkflag2 = 1;
+                                                            featureToCountMap1.put(tword2, 1);
+                                                            flag2 = 1;
                                                         }
                                                         negPol = 1;
                                                         for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
                                                             if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
-                                                        Integer val = negPol * ((Integer) opDict.get(key));
+                                                        Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(val);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(val);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -439,21 +391,21 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature.get(tword2));
-                                                            feature.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap1.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap1.get(tword2));
+                                                            featureToCountMap1.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature.put(tword2, 1);
-                                                            chkflag2 = 1;
+                                                            featureToCountMap1.put(tword2, 1);
+                                                            flag2 = 1;
                                                         }
                                                         negPol = 1;
                                                         for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
                                                             if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
-                                                        Integer val = negPol * ((Integer) opDict.get(key));
+                                                        Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(val);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(val);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -479,7 +431,7 @@ public class AspectExtractionApp {
 
                     }         //////end of Rule 1.2
                     //Rule 4.1
-                    for (String name : opDict.keySet()) {
+                    for (String name : opinionToPolarityMap1.keySet()) {
                         String key = name.toString();
                         for (int posi = 0; posi < word.length; posi++) {
                             if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("JJ") == true || wordPOS[posi].equalsIgnoreCase("JJR") == true || wordPOS[posi].equalsIgnoreCase("JJS") == true)) {
@@ -488,13 +440,13 @@ public class AspectExtractionApp {
                                         String tword = depMatrix[i][2];
                                         for (int loopi = 0; loopi < word.length; loopi++) {
                                             if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                if (opDict1.containsKey(tword)) {
-                                                  /*Integer counter = ((Integer)opDict1.get(tword));
-										          opDict1.put(tword, new Integer(counter +1));*/
+                                                if (opinionToPolarityMap2.containsKey(tword)) {
+                                                  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
+										          opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
                                                 } else {
 
-                                                    Integer value = (Integer) opDict.get(name);
-                                                    opDict1.put(tword, value);
+                                                    Integer value = (Integer) opinionToPolarityMap1.get(name);
+                                                    opinionToPolarityMap2.put(tword, value);
                                                 }
                                             }
 
@@ -505,13 +457,13 @@ public class AspectExtractionApp {
                                         String tword = depMatrix[i][1];
                                         for (int loopi = 0; loopi < word.length; loopi++) {
                                             if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                if (opDict1.containsKey(tword)) {
-										    	  /*Integer counter = ((Integer)opDict1.get(tword));
-										          opDict1.put(tword, new Integer(counter +1));*/
+                                                if (opinionToPolarityMap2.containsKey(tword)) {
+										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
+										          opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
                                                 } else {
 
-                                                    Integer value = (Integer) opDict.get(name);
-                                                    opDict1.put(tword, value);
+                                                    Integer value = (Integer) opinionToPolarityMap1.get(name);
+                                                    opinionToPolarityMap2.put(tword, value);
                                                 }
                                             }
 
@@ -525,25 +477,25 @@ public class AspectExtractionApp {
 
                     }
 
-                    for (String name : opDict1.keySet()) {
+                    for (String name : opinionToPolarityMap2.keySet()) {
                         String key = name.toString();
-                        Integer value = (Integer) opDict1.get(name);
-                        if (opDict.containsKey(key)) {
-					    	  /*Integer counter = ((Integer)opDict.get(key));
-					          opDict.put(key, new Integer(counter + value));*/
+                        Integer value = (Integer) opinionToPolarityMap2.get(name);
+                        if (opinionToPolarityMap1.containsKey(key)) {
+					    	  /*Integer counter = ((Integer)opinionToPolarityMap1.get(key));
+					          opinionToPolarityMap1.put(key, new Integer(counter + value));*/
                         } else {
-                            opDict.put(key, value);
-                            chkflag3 = 1;
+                            opinionToPolarityMap1.put(key, value);
+                            flag3 = 1;
                         }
                     }
 
-                    opDict1 = new HashMap<String, Integer>();
+                    opinionToPolarityMap2 = new HashMap<String, Integer>();
 
 ///end of Rule 4.1
 
                     //  f9.addAll(featureI);
                     ////Rule 3.1
-                    for (String name : feature.keySet()) {
+                    for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
                         for (int posi = 0; posi < word.length; posi++) {
                             if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("NN") == true || wordPOS[posi].equalsIgnoreCase("NNS") == true || wordPOS[posi].equalsIgnoreCase("NNP") == true)) {
@@ -558,11 +510,11 @@ public class AspectExtractionApp {
                                                 if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                     tword = tword + " " + word[loopi + 1];
                                                 }
-                                                if (feature1.containsKey(tword)) {
-                                                    Integer counter = ((Integer) feature1.get(tword));
-                                                    feature1.put(tword, new Integer(counter + 1));
+                                                if (featureToCountMap2.containsKey(tword)) {
+                                                    Integer counter = ((Integer) featureToCountMap2.get(tword));
+                                                    featureToCountMap2.put(tword, new Integer(counter + 1));
                                                 } else {
-                                                    feature1.put(tword, 1);
+                                                    featureToCountMap2.put(tword, 1);
                                                 }
                                             }
 
@@ -579,11 +531,11 @@ public class AspectExtractionApp {
                                                 if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                     tword = tword + " " + word[loopi + 1];
                                                 }
-                                                if (feature1.containsKey(tword)) {
-                                                    Integer counter = ((Integer) feature1.get(tword));
-                                                    feature1.put(tword, new Integer(counter + 1));
+                                                if (featureToCountMap2.containsKey(tword)) {
+                                                    Integer counter = ((Integer) featureToCountMap2.get(tword));
+                                                    featureToCountMap2.put(tword, new Integer(counter + 1));
                                                 } else {
-                                                    feature1.put(tword, 1);
+                                                    featureToCountMap2.put(tword, 1);
                                                 }
                                             }
 
@@ -596,25 +548,25 @@ public class AspectExtractionApp {
 
 
                     }
-                    for (String name : feature1.keySet()) {
+                    for (String name : featureToCountMap2.keySet()) {
                         String key = name.toString();
-                        Integer value = (Integer) feature1.get(name);
-                        if (feature.containsKey(key)) {
-                            Integer counter = ((Integer) feature.get(key));
-                            feature.put(key, new Integer(counter + value));
+                        Integer value = (Integer) featureToCountMap2.get(name);
+                        if (featureToCountMap1.containsKey(key)) {
+                            Integer counter = ((Integer) featureToCountMap1.get(key));
+                            featureToCountMap1.put(key, new Integer(counter + value));
                         } else {
-                            feature.put(key, value);
-                            chkflag5 = 1;
+                            featureToCountMap1.put(key, value);
+                            flag4 = 1;
                         }
                     }
 
-                    feature1 = new HashMap<String, Integer>();
+                    featureToCountMap2 = new HashMap<String, Integer>();
                     ///end of Rule 3.1
 
 
                     ////Rule 3.2
 
-                    for (String name : feature.keySet()) {
+                    for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
                         for (int posi = 0; posi < word.length; posi++) {
                             if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("NN") == true || wordPOS[posi].equalsIgnoreCase("NNP") == true || wordPOS[posi].equalsIgnoreCase("NNS") == true)) {
@@ -634,11 +586,11 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature1.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature1.get(tword2));
-                                                            feature1.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap2.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap2.get(tword2));
+                                                            featureToCountMap2.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature1.put(tword2, 1);
+                                                            featureToCountMap2.put(tword2, 1);
                                                         }
 
 
@@ -658,11 +610,11 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature1.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature1.get(tword2));
-                                                            feature1.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap2.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap2.get(tword2));
+                                                            featureToCountMap2.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature1.put(tword2, 1);
+                                                            featureToCountMap2.put(tword2, 1);
                                                         }
                                                     }
 
@@ -687,11 +639,11 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature1.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature1.get(tword2));
-                                                            feature1.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap2.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap2.get(tword2));
+                                                            featureToCountMap2.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature1.put(tword2, 1);
+                                                            featureToCountMap2.put(tword2, 1);
                                                         }
                                                     }
 
@@ -709,11 +661,11 @@ public class AspectExtractionApp {
                                                         if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
                                                             tword2 = tword2 + " " + word[loopi + 1];
                                                         }
-                                                        if (feature1.containsKey(tword2)) {
-                                                            Integer counter = ((Integer) feature1.get(tword2));
-                                                            feature1.put(tword2, new Integer(counter + 1));
+                                                        if (featureToCountMap2.containsKey(tword2)) {
+                                                            Integer counter = ((Integer) featureToCountMap2.get(tword2));
+                                                            featureToCountMap2.put(tword2, new Integer(counter + 1));
                                                         } else {
-                                                            feature1.put(tword2, 1);
+                                                            featureToCountMap2.put(tword2, 1);
                                                         }
                                                     }
 
@@ -735,19 +687,19 @@ public class AspectExtractionApp {
 
                     }
 
-                    for (String name : feature1.keySet()) {
+                    for (String name : featureToCountMap2.keySet()) {
                         String key = name.toString();
-                        Integer value = (Integer) feature1.get(name);
-                        if (feature.containsKey(key)) {
-                            Integer counter = ((Integer) feature.get(key));
-                            feature.put(key, new Integer(counter + value));
+                        Integer value = (Integer) featureToCountMap2.get(name);
+                        if (featureToCountMap1.containsKey(key)) {
+                            Integer counter = ((Integer) featureToCountMap1.get(key));
+                            featureToCountMap1.put(key, new Integer(counter + value));
                         } else {
-                            feature.put(key, value);
-                            chkflag6 = 1;
+                            featureToCountMap1.put(key, value);
+                            flag5 = 1;
                         }
                     }
 
-                    feature1 = new HashMap<String, Integer>();
+                    featureToCountMap2 = new HashMap<String, Integer>();
                     ////End of Rule 3.2
 
 
@@ -756,7 +708,7 @@ public class AspectExtractionApp {
                     //opDictexpanded.addAll(opI);
 
 
-                    for (String name : feature.keySet()) {
+                    for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
                         for (int posi = 0; posi < word.length; posi++) {
                             // System.out.println(word[posi]);
@@ -766,15 +718,15 @@ public class AspectExtractionApp {
                                         String tword = depMatrix[i][2];
                                         for (int loopi = 0; loopi < word.length; loopi++) {
                                             if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                if (opDict1.containsKey(tword)) {
+                                                if (opinionToPolarityMap2.containsKey(tword)) {
                                                 } else {
 
-                                                    opDict1.put(tword, POLVAL);//detect latter
+                                                    opinionToPolarityMap2.put(tword, reviewPolarity);//detect latter
                                                 }
 
 
                                                 String annt = new String();
-                                                annt = reviewid + "@" + tword + "@" + Integer.toString(POLVAL);
+                                                annt = reviewIndex + "@" + tword + "@" + Integer.toString(reviewPolarity);
                                                 if (annote.contains(annt)) {
 
                                                 } else {
@@ -789,16 +741,16 @@ public class AspectExtractionApp {
                                         String tword = depMatrix[i][1];
                                         for (int loopi = 0; loopi < word.length; loopi++) {
                                             if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                if (opDict1.containsKey(tword)) {
-										    	  /*Integer counter = ((Integer)opDict1.get(tword));
-										          opDict1.put(tword, new Integer(counter +1));*/
+                                                if (opinionToPolarityMap2.containsKey(tword)) {
+										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
+										          opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
                                                 } else {
 
-                                                    //Integer value =(Integer) opDict.get(name);
-                                                    opDict1.put(tword, POLVAL);
+                                                    //Integer value =(Integer) opinionToPolarityMap1.get(name);
+                                                    opinionToPolarityMap2.put(tword, reviewPolarity);
                                                 }
                                                 String annt = new String();
-                                                annt = reviewid + "@" + tword + "@" + Integer.toString(POLVAL);
+                                                annt = reviewIndex + "@" + tword + "@" + Integer.toString(reviewPolarity);
                                                 if (annote.contains(annt)) {
 
                                                 } else {
@@ -817,7 +769,7 @@ public class AspectExtractionApp {
                     }
 
                     //Rule 2.2
-                    for (String name : feature.keySet()) {
+                    for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
                         // System.out.println(op[0]);
                         for (int posi = 0; posi < word.length; posi++) {
@@ -833,14 +785,14 @@ public class AspectExtractionApp {
 
                                                 for (int loopi = 0; loopi < word.length; loopi++) {
                                                     if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                        if (opDict1.containsKey(tword2)) {
-										    	  /*Integer counter = ((Integer)opDict1.get(tword2));
-										          opDict1.put(tword2, new Integer(counter +1));*/
+                                                        if (opinionToPolarityMap2.containsKey(tword2)) {
+										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
+										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
                                                         } else {
-                                                            opDict1.put(tword2, POLVAL);
+                                                            opinionToPolarityMap2.put(tword2, reviewPolarity);
                                                         }
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(POLVAL);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(reviewPolarity);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -856,14 +808,14 @@ public class AspectExtractionApp {
 
                                                 for (int loopi = 0; loopi < word.length; loopi++) {
                                                     if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                        if (opDict1.containsKey(tword2)) {
-										    	  /*Integer counter = ((Integer)opDict1.get(tword2));
-										          opDict1.put(tword2, new Integer(counter +1));*/
+                                                        if (opinionToPolarityMap2.containsKey(tword2)) {
+										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
+										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
                                                         } else {
-                                                            opDict1.put(tword2, POLVAL);
+                                                            opinionToPolarityMap2.put(tword2, reviewPolarity);
                                                         }
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(POLVAL);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(reviewPolarity);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -886,14 +838,14 @@ public class AspectExtractionApp {
 
                                                 for (int loopi = 0; loopi < word.length; loopi++) {
                                                     if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                        if (opDict1.containsKey(tword2)) {
-										    	 /* Integer counter = ((Integer)opDict1.get(tword2));
-										          opDict1.put(tword2, new Integer(counter +1));*/
+                                                        if (opinionToPolarityMap2.containsKey(tword2)) {
+										    	 /* Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
+										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
                                                         } else {
-                                                            opDict1.put(tword2, POLVAL);
+                                                            opinionToPolarityMap2.put(tword2, reviewPolarity);
                                                         }
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(POLVAL);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(reviewPolarity);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -909,14 +861,14 @@ public class AspectExtractionApp {
 
                                                 for (int loopi = 0; loopi < word.length; loopi++) {
                                                     if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
-                                                        if (opDict1.containsKey(tword2)) {
-										    	  /*Integer counter = ((Integer)opDict1.get(tword2));
-										          opDict1.put(tword2, new Integer(counter +1));*/
+                                                        if (opinionToPolarityMap2.containsKey(tword2)) {
+										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
+										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
                                                         } else {
-                                                            opDict1.put(tword2, POLVAL);
+                                                            opinionToPolarityMap2.put(tword2, reviewPolarity);
                                                         }
                                                         String annt = new String();
-                                                        annt = reviewid + "@" + tword2 + "@" + Integer.toString(POLVAL);
+                                                        annt = reviewIndex + "@" + tword2 + "@" + Integer.toString(reviewPolarity);
                                                         if (annote.contains(annt)) {
 
                                                         } else {
@@ -943,19 +895,19 @@ public class AspectExtractionApp {
                     }
 
 
-                    for (String name : opDict1.keySet()) {
+                    for (String name : opinionToPolarityMap2.keySet()) {
                         String key = name.toString();
-                        Integer value = (Integer) opDict1.get(name);
-                        if (opDict.containsKey(key)) {
-					    	  /*Integer counter = ((Integer)opDict.get(key));
-					          opDict.put(key, new Integer(counter + value));*/
+                        Integer value = (Integer) opinionToPolarityMap2.get(name);
+                        if (opinionToPolarityMap1.containsKey(key)) {
+					    	  /*Integer counter = ((Integer)opinionToPolarityMap1.get(key));
+					          opinionToPolarityMap1.put(key, new Integer(counter + value));*/
                         } else {
-                            opDict.put(key, value);
-                            chkflag7 = 1;
+                            opinionToPolarityMap1.put(key, value);
+                            flag6 = 1;
                         }
                     }
 
-                    opDict1 = new HashMap<String, Integer>();
+                    opinionToPolarityMap2 = new HashMap<String, Integer>();
                     //end of Rule 2.2
 
 
@@ -968,8 +920,8 @@ public class AspectExtractionApp {
                 //break;//review break
 
             }
-            loopiter++;
-        } while (chkflag1 == 1 || chkflag2 == 1 || chkflag3 == 1 || chkflag5 == 1 || chkflag6 == 1 || chkflag7 == 1);
+            epoch++;
+        } while (flag1 == 1 || flag2 == 1 || flag3 == 1 || flag4 == 1 || flag5 == 1 || flag6 == 1);
         ///
         int gg = 0;
         String content;
@@ -981,10 +933,10 @@ public class AspectExtractionApp {
         }
         FileWriter fw = new FileWriter(file.getAbsoluteFile());
         BufferedWriter bw = new BufferedWriter(fw);
-        for (String name : feature.keySet()) {
+        for (String name : featureToCountMap1.keySet()) {
 
             String key = name.toString();
-            Integer value = (Integer) feature.get(name);
+            Integer value = (Integer) featureToCountMap1.get(name);
             //System.out.println(key + ":" + value);
             gg++;
             content = new String();
@@ -996,12 +948,11 @@ public class AspectExtractionApp {
         bw.close();
         System.out.println(gg);
 
-        //feature freq
+        //featureToCountMap1 freq
 
         HashMap<String, Integer> featureFreq = new HashMap<String, Integer>();
         //String str="E:\\work\\Deepanshu\\nowInput\\nu/B000RK3BO0.txt";
-        String str = args[2];
-        BufferedReader in = new BufferedReader(new FileReader(str));
+        BufferedReader in = new BufferedReader(new FileReader(reviewsFilePath));
         //start Preprocessing
         String sCurrentLine;
         int i = 0;
@@ -1081,8 +1032,8 @@ public class AspectExtractionApp {
                         int limit2 = Math.min(var + 2, word.length - 1);
                         if (wordPOS[limit1].equalsIgnoreCase("NN") || wordPOS[limit1].equalsIgnoreCase("NNS") || wordPOS[limit1].equalsIgnoreCase("NNP")) {
                             newFeatureWord = word[limit1];
-                            if (opDict.containsKey(word[var])) {
-                                val = (Integer) opDict.get(word[var]);
+                            if (opinionToPolarityMap1.containsKey(word[var])) {
+                                val = (Integer) opinionToPolarityMap1.get(word[var]);
                             }
                             int newnegPol = 1;
                             for (int PolVar = Math.max(0, var - 2); PolVar < Math.min(word.length, var + 2); PolVar++)
@@ -1093,11 +1044,11 @@ public class AspectExtractionApp {
                             if (wordPOS[limit2].equalsIgnoreCase("NN") || wordPOS[limit2].equalsIgnoreCase("NNS") || wordPOS[limit2].equalsIgnoreCase("NNP")) {
                                 newFeatureWord = newFeatureWord + " " + word[limit2];
                             }
-                            if (feature.containsKey(newFeatureWord)) {
-                                Integer counter = ((Integer) feature.get(newFeatureWord));
-                                feature.put(newFeatureWord, new Integer(counter + 1));
+                            if (featureToCountMap1.containsKey(newFeatureWord)) {
+                                Integer counter = ((Integer) featureToCountMap1.get(newFeatureWord));
+                                featureToCountMap1.put(newFeatureWord, new Integer(counter + 1));
                             } else {
-                                feature.put(newFeatureWord, 1);
+                                featureToCountMap1.put(newFeatureWord, 1);
                             }
                             String annt = new String();
                             annt = reviewid + "@" + newFeatureWord + "@" + Integer.toString(val);
@@ -1115,7 +1066,7 @@ public class AspectExtractionApp {
 
                 }
 
-                for (String name : feature.keySet()) {
+                for (String name : featureToCountMap1.keySet()) {
                     String key = name.toString();
                     if (key.indexOf(' ') >= 0) {
                         if (sentence.toLowerCase().contains(key.toLowerCase())) {
@@ -1180,11 +1131,11 @@ public class AspectExtractionApp {
         }
         fw = new FileWriter(file.getAbsoluteFile());
         bw = new BufferedWriter(fw);
-        for (String name : opDict.keySet()) {
+        for (String name : opinionToPolarityMap1.keySet()) {
 
 
             String key = name.toString();
-            Integer value = (Integer) opDict.get(name);
+            Integer value = (Integer) opinionToPolarityMap1.get(name);
             //System.out.println(key + ":" + value);
             content = new String();
             content = key + ":" + value;
@@ -1195,7 +1146,7 @@ public class AspectExtractionApp {
         }
         bw.close();
         System.out.println(gg);
-        System.out.println(loopiter);
+        System.out.println(epoch);
 
 
         ArrayList<String> finalFeature = new ArrayList<String>();
@@ -1216,7 +1167,7 @@ public class AspectExtractionApp {
 
 
         // str="E:\\work\\Deepanshu\\Video_Game_Output\\FinalFeature.txt";
-        str = "../output/FinalFeature.txt";
+        String str = "../output/FinalFeature.txt";
         FileWriter fr = new FileWriter(str);
         BufferedWriter out = new BufferedWriter(fr);
         i = 0;
@@ -1227,7 +1178,6 @@ public class AspectExtractionApp {
             i++;
         }
 
-        inp.close();
         out.close();
 
         ArrayList<String> annote1 = new ArrayList<String>();
@@ -1258,6 +1208,83 @@ public class AspectExtractionApp {
         bw.close();
 
 
+    }
+
+    /**
+     * 1. Remove multiple dots
+     * 2. Convert to lowerCase
+     * 3. Remove emoticons, hyphen, underscore
+     */
+    private String getProcessedReviewText(int reviewIndex, String reviewText) {
+        logger.info("Request to process review text, reviewIndex :{}, reviewText: {}", reviewIndex, reviewText);
+        String processedReviewText = "";
+
+        // Remove multiple dots
+        int i;
+        for (i = 0; i < reviewText.length() - 1; i++) {
+            if (reviewText.charAt(i) == '.' && reviewText.charAt(i + 1) == '.') {
+                continue;
+            } else {
+                processedReviewText += reviewText.charAt(i);
+            }
+
+        }
+        processedReviewText += reviewText.charAt(i);
+
+        // Convert to lowerCase
+        processedReviewText = processedReviewText.toLowerCase();
+
+        // Remove emoticons, hyphen, underscore
+        processedReviewText = processedReviewText.replace(":o)", " ");
+        processedReviewText = processedReviewText.replace(":-)", " ");
+        processedReviewText = processedReviewText.replace(";-)", " ");
+        processedReviewText = processedReviewText.replace('_', ' ');
+        processedReviewText = processedReviewText.replace('-', ' ');
+
+        logger.info("Returning processedReviewText :{}, reviewIndex: {}, reviewText: {}", processedReviewText, reviewIndex, reviewText);
+        return processedReviewText;
+    }
+
+    private String getReviewText(String line, int reviewIndex) {
+        String text = line.substring(line.indexOf(',', line.indexOf(',') + 1) + 1);
+        logger.info("ReviewIndex: {}, text: {}", reviewIndex, text);
+
+        return text;
+    }
+
+    private int getReviewPolarity(int reviewIndex, String line) {
+        int polarity;
+        String ratingString = line.substring(line.indexOf(',') + 1, line.indexOf(',', line.indexOf(',') + 1));
+        int rating = Integer.parseInt(ratingString.substring(0, ratingString.indexOf('.')));
+
+        if (rating >= 3) {
+            polarity = 1;
+        } else {
+            polarity = -1;
+        }
+        logger.info("ReviewIndex: {}, rating: {}", reviewIndex, rating);
+        return polarity;
+    }
+
+    private void resetFlags() {
+        flag1 = 0;
+        flag2 = 0;
+        flag3 = 0;
+        flag4 = 0;
+        flag5 = 0;
+        flag6 = 0;
+    }
+
+    private void updateOpinions(String opinionFilePath, HashMap<String, Integer> opinionToPolarityMap, int polarity) throws IOException {
+        BufferedReader bufferedReader = new BufferedReader(new FileReader(opinionFilePath));
+
+        String line;
+        while ((line = bufferedReader.readLine()) != null) {
+            line = line.trim();
+            line = line.toLowerCase();
+            opinionToPolarityMap.put(line, polarity);
+        }
+        bufferedReader.close();
     }
 
 }
