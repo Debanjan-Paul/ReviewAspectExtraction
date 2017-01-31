@@ -61,7 +61,7 @@ public class AspectExtractionApp {
             opinionToPolarityMap2 = new HashMap<>();
 
             String line;
-            int i;
+            int depMatrixRowI;
             int reviewIndex = 0;
 
             BufferedReader bufferedReader = new BufferedReader(new FileReader(reviewsFilePath));
@@ -83,88 +83,66 @@ public class AspectExtractionApp {
                     logger.info("Review Sentence: {}", sentence);
 
                     // 1) Word tokenization
-                    String word[] = sentence.split(" ");
-                    String wordPOS[] = new String[word.length];
+                    String sentenceWords[] = sentence.split(" ");
+                    String sentenceWordsPos[] = new String[sentenceWords.length];
 
                     // Tag the sentence
                     String tagged = TAGGER.tagString(sentence);
                     logger.info("Tagged sentence: {}", tagged);
 
-                    // Calculate wordPOS array
+                    // Calculate sentenceWordsPos array
                     // eg:
                     //      tagged  : "does_VBZ n't_RB work_VB ._. "
-                    //      wordPOS : ["VBZ", "RB", "VB"]
-                    getWordPOS(wordPOS, tagged);
-                    logger.info("wordPOS: {}", wordPOS);
+                    //      sentenceWordsPos : ["VBZ", "RB", "VB"]
+                    getWordPOS(sentenceWordsPos, tagged);
+                    logger.info("sentenceWordsPos: {}", sentenceWordsPos);
 
                     // Dependency Parsing
                     // eg:
-                    //      word: [does, n't, work, .]
-                    //      depTree: [aux(work-3, does-1), neg(work-3, n't-2), root(ROOT-0, work-3)]
-                    String depTree = dependencyParser.demoAPI(word);
-                    logger.info("depTree: {}", depTree);
+                    //      sentenceWords: [does, n't, work, .]
+                    //      depTreeString: [aux(work-3, does-1), neg(work-3, n't-2), root(ROOT-0, work-3)]
+                    String depTreeString = dependencyParser.demoAPI(sentenceWords);
+                    logger.info("depTreeString: {}", depTreeString);
 
-                    int spacecount = 0;
-                    for (i = 1; i < depTree.length() - 1; i++) {
-                        if (depTree.charAt(i) == ' ') {
-                            spacecount++;
-                        }
-                    }
-                    spacecount = (int) (spacecount / 2) + 1;
-                    System.out.println(spacecount);
-                    String depMatrix[][] = new String[spacecount][3];
-                    int flag = 0;
-                    int p = 0;
-                    String temp = "";
-                    String temp1 = "";
-                    String temp3 = "";
-                    for (i = 1; i < depTree.length() - 1; i++) {
-                        if (depTree.charAt(i) != '(' && flag == 0) {
-                            temp3 += depTree.charAt(i);
-                        } else if (depTree.charAt(i) == '(' && flag == 0) {
-                            flag = 1;
-                        } else if (depTree.charAt(i) != ',' && flag == 1) {
-                            temp += depTree.charAt(i);
-                        } else if (depTree.charAt(i) == ',' && flag == 1) {
-                            flag = 2;
-                        } else if (depTree.charAt(i) != ')' && flag == 2) {
-                            temp1 += depTree.charAt(i);
-                        } else if (depTree.charAt(i) == ')' && flag == 2) {
-                            i += 2;
-                            flag = 0;
-                            // System.out.println(temp3+"$"+temp.trim()+"$"+temp1.trim());
-                            //take the words
-                            depMatrix[p][0] = temp3.trim();
-                            depMatrix[p][1] = temp.substring(0, temp.lastIndexOf('-')).trim();
-                            depMatrix[p++][2] = temp1.substring(0, temp1.lastIndexOf('-')).trim();
-                            temp = "";
-                            temp1 = "";
-                            temp3 = "";
-                        }
-                        //else
-                        //  continue;
-                    }
-                    for (i = 0; i < p; i++)
-                        System.out.println(depMatrix[i][0] + " " + depMatrix[i][1] + " " + depMatrix[i][2] + " ");
+                    // Convert depTreeString to depMatrix
+                    // depTreeString: [aux(work-3, does-1), neg(work-3, n't-2), root(ROOT-0, work-3)]
+                    // depMatrix: [ [aux, work, does], [neg, work, n't], [root, ROOT, work] ]
+                    GenerateDepMatrix generateDepMatrix = new GenerateDepMatrix(depTreeString).invoke();
+                    int depMatrixRowCount = generateDepMatrix.getP();
+                    String[][] depMatrix = generateDepMatrix.getDepMatrix();
 
                     //Rule R1.1
+                    for (String opinion : opinionToPolarityMap1.keySet()) {
+                        for (int posI = 0; posI < sentenceWords.length; posI++) {
 
-                    for (String name : opinionToPolarityMap1.keySet()) {
-                        String key = name.toString();
-                        // System.out.println(op[0]);
-                        for (int posi = 0; posi < word.length; posi++) {
-                            // System.out.println(word[posi]);
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("JJ") == true || wordPOS[posi].equalsIgnoreCase("JJR") == true || wordPOS[posi].equalsIgnoreCase("JJS") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj"))) {
-                                        String tword = depMatrix[i][2];
-                                        for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                    tword = word[loopi - 1] + " " + tword;
+                            // If i-th word of sentence is an opinion and one of the below
+                            // JJ: Adjective
+                            // JJR: Adjective, comparative
+                            // JJS: Adjective, superlative
+                            if (opinion.equalsIgnoreCase(sentenceWords[posI]) && (sentenceWordsPos[posI].equalsIgnoreCase("JJ")
+                                    || sentenceWordsPos[posI].equalsIgnoreCase("JJR") || sentenceWordsPos[posI].equalsIgnoreCase("JJS"))) {
+
+                                // Iterate over depMatrix [ [aux, work, does], [neg, work, n't], [root, ROOT, work] ]
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+
+                                    // ( index [1] contains word)
+                                    // If word is:
+                                    // amod: adjectival modifier
+                                    // nsubj: nominal subject
+                                    // dobj - direct object
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posI])
+                                            && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod")
+                                            || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj")
+                                            || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj"))) {
+
+                                        String tword = depMatrix[depMatrixRowI][2];
+                                        for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                    tword = sentenceWords[loopi - 1] + " " + tword;
                                                 }
-                                                if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                    tword = tword + " " + word[loopi + 1];
+                                                if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                    tword = tword + " " + sentenceWords[loopi + 1];
                                                 }
                                                 if (featureToCountMap1.containsKey(tword)) {
                                                     Integer counter = ((Integer) featureToCountMap1.get(tword));
@@ -174,12 +152,12 @@ public class AspectExtractionApp {
                                                     flag1 = 1;
                                                 }
                                                 negPol = 1;
-                                                for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
-                                                    if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
+                                                for (int PolVar = Math.max(0, posI - 2); PolVar < Math.min(sentenceWords.length, posI + 2); PolVar++)
+                                                    if (sentenceWords[PolVar].equalsIgnoreCase("not") || sentenceWords[PolVar].equalsIgnoreCase("n't") || sentenceWords[PolVar].equalsIgnoreCase("'t") || sentenceWords[PolVar].equalsIgnoreCase("however") || sentenceWords[PolVar].equalsIgnoreCase("but") || sentenceWords[PolVar].equalsIgnoreCase("despite") || sentenceWords[PolVar].equalsIgnoreCase("though") || sentenceWords[PolVar].equalsIgnoreCase("except") || sentenceWords[PolVar].equalsIgnoreCase("although") || sentenceWords[PolVar].equalsIgnoreCase("oddly")) {
                                                         negPol = -1;
                                                     }
 
-                                                Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
+                                                Integer val = negPol * ((Integer) opinionToPolarityMap1.get(opinion));
                                                 String annt = new String();
                                                 annt = reviewIndex + "@" + tword + "@" + Integer.toString(val);
                                                 if (annote.contains(annt)) {
@@ -193,15 +171,15 @@ public class AspectExtractionApp {
                                         }
 
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj"))) {
-                                        String tword = depMatrix[i][1];
-                                        for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                    tword = word[loopi - 1] + " " + tword;
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posI]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj"))) {
+                                        String tword = depMatrix[depMatrixRowI][1];
+                                        for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                    tword = sentenceWords[loopi - 1] + " " + tword;
                                                 }
-                                                if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                    tword = tword + " " + word[loopi + 1];
+                                                if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                    tword = tword + " " + sentenceWords[loopi + 1];
                                                 }
                                                 if (featureToCountMap1.containsKey(tword)) {
                                                     Integer counter = ((Integer) featureToCountMap1.get(tword));
@@ -212,13 +190,13 @@ public class AspectExtractionApp {
                                                 }
 
                                                 negPol = 1;
-                                                for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
-                                                    if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
+                                                for (int PolVar = Math.max(0, posI - 2); PolVar < Math.min(sentenceWords.length, posI + 2); PolVar++)
+                                                    if (sentenceWords[PolVar].equalsIgnoreCase("not") || sentenceWords[PolVar].equalsIgnoreCase("n't") || sentenceWords[PolVar].equalsIgnoreCase("'t") || sentenceWords[PolVar].equalsIgnoreCase("however") || sentenceWords[PolVar].equalsIgnoreCase("but") || sentenceWords[PolVar].equalsIgnoreCase("despite") || sentenceWords[PolVar].equalsIgnoreCase("though") || sentenceWords[PolVar].equalsIgnoreCase("except") || sentenceWords[PolVar].equalsIgnoreCase("although") || sentenceWords[PolVar].equalsIgnoreCase("oddly")) {
                                                         negPol = -1;
                                                     }
 
 
-                                                Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
+                                                Integer val = negPol * ((Integer) opinionToPolarityMap1.get(opinion));
                                                 String annt = new String();
                                                 annt = reviewIndex + "@" + tword + "@" + Integer.toString(val);
                                                 if (annote.contains(annt)) {
@@ -243,24 +221,24 @@ public class AspectExtractionApp {
                     for (String name : opinionToPolarityMap1.keySet()) {
                         String key = name.toString();
                         // System.out.println(op[0]);
-                        for (int posi = 0; posi < word.length; posi++) {
-                            // System.out.println(word[posi]);
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("JJ") == true || wordPOS[posi].equalsIgnoreCase("JJR") == true || wordPOS[posi].equalsIgnoreCase("JJS") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj"))) {
-                                        String tword = depMatrix[i][2];
+                        for (int posi = 0; posi < sentenceWords.length; posi++) {
+                            // System.out.println(sentenceWords[posi]);
+                            if (key.equalsIgnoreCase(sentenceWords[posi]) == true && (sentenceWordsPos[posi].equalsIgnoreCase("JJ") == true || sentenceWordsPos[posi].equalsIgnoreCase("JJR") == true || sentenceWordsPos[posi].equalsIgnoreCase("JJS") == true)) {
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj"))) {
+                                        String tword = depMatrix[depMatrixRowI][2];
 
-                                        for (int j = 0; j < p; j++) {
+                                        for (int j = 0; j < depMatrixRowCount; j++) {
                                             if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][2];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap1.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap1.get(tword2));
@@ -270,8 +248,8 @@ public class AspectExtractionApp {
                                                             flag2 = 1;
                                                         }
                                                         negPol = 1;
-                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
-                                                            if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
+                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(sentenceWords.length, posi + 2); PolVar++)
+                                                            if (sentenceWords[PolVar].equalsIgnoreCase("not") || sentenceWords[PolVar].equalsIgnoreCase("n't") || sentenceWords[PolVar].equalsIgnoreCase("'t") || sentenceWords[PolVar].equalsIgnoreCase("however") || sentenceWords[PolVar].equalsIgnoreCase("but") || sentenceWords[PolVar].equalsIgnoreCase("despite") || sentenceWords[PolVar].equalsIgnoreCase("though") || sentenceWords[PolVar].equalsIgnoreCase("except") || sentenceWords[PolVar].equalsIgnoreCase("although") || sentenceWords[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
                                                         Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
@@ -290,13 +268,13 @@ public class AspectExtractionApp {
                                             if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][1];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap1.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap1.get(tword2));
@@ -306,8 +284,8 @@ public class AspectExtractionApp {
                                                             flag2 = 1;
                                                         }
                                                         negPol = 1;
-                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
-                                                            if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
+                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(sentenceWords.length, posi + 2); PolVar++)
+                                                            if (sentenceWords[PolVar].equalsIgnoreCase("not") || sentenceWords[PolVar].equalsIgnoreCase("n't") || sentenceWords[PolVar].equalsIgnoreCase("'t") || sentenceWords[PolVar].equalsIgnoreCase("however") || sentenceWords[PolVar].equalsIgnoreCase("but") || sentenceWords[PolVar].equalsIgnoreCase("despite") || sentenceWords[PolVar].equalsIgnoreCase("though") || sentenceWords[PolVar].equalsIgnoreCase("except") || sentenceWords[PolVar].equalsIgnoreCase("although") || sentenceWords[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
                                                         Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
@@ -326,20 +304,20 @@ public class AspectExtractionApp {
 
                                         }
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj"))) {
-                                        String tword = depMatrix[i][1];///
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj"))) {
+                                        String tword = depMatrix[depMatrixRowI][1];///
 
-                                        for (int j = 0; j < p; j++) {
+                                        for (int j = 0; j < depMatrixRowCount; j++) {
                                             if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][2];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap1.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap1.get(tword2));
@@ -349,8 +327,8 @@ public class AspectExtractionApp {
                                                             flag2 = 1;
                                                         }
                                                         negPol = 1;
-                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
-                                                            if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
+                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(sentenceWords.length, posi + 2); PolVar++)
+                                                            if (sentenceWords[PolVar].equalsIgnoreCase("not") || sentenceWords[PolVar].equalsIgnoreCase("n't") || sentenceWords[PolVar].equalsIgnoreCase("'t") || sentenceWords[PolVar].equalsIgnoreCase("however") || sentenceWords[PolVar].equalsIgnoreCase("but") || sentenceWords[PolVar].equalsIgnoreCase("despite") || sentenceWords[PolVar].equalsIgnoreCase("though") || sentenceWords[PolVar].equalsIgnoreCase("except") || sentenceWords[PolVar].equalsIgnoreCase("although") || sentenceWords[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
                                                         Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
@@ -369,13 +347,13 @@ public class AspectExtractionApp {
                                             if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][1];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap1.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap1.get(tword2));
@@ -385,8 +363,8 @@ public class AspectExtractionApp {
                                                             flag2 = 1;
                                                         }
                                                         negPol = 1;
-                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(word.length, posi + 2); PolVar++)
-                                                            if (word[PolVar].equalsIgnoreCase("not") || word[PolVar].equalsIgnoreCase("n't") || word[PolVar].equalsIgnoreCase("'t") || word[PolVar].equalsIgnoreCase("however") || word[PolVar].equalsIgnoreCase("but") || word[PolVar].equalsIgnoreCase("despite") || word[PolVar].equalsIgnoreCase("though") || word[PolVar].equalsIgnoreCase("except") || word[PolVar].equalsIgnoreCase("although") || word[PolVar].equalsIgnoreCase("oddly")) {
+                                                        for (int PolVar = Math.max(0, posi - 2); PolVar < Math.min(sentenceWords.length, posi + 2); PolVar++)
+                                                            if (sentenceWords[PolVar].equalsIgnoreCase("not") || sentenceWords[PolVar].equalsIgnoreCase("n't") || sentenceWords[PolVar].equalsIgnoreCase("'t") || sentenceWords[PolVar].equalsIgnoreCase("however") || sentenceWords[PolVar].equalsIgnoreCase("but") || sentenceWords[PolVar].equalsIgnoreCase("despite") || sentenceWords[PolVar].equalsIgnoreCase("though") || sentenceWords[PolVar].equalsIgnoreCase("except") || sentenceWords[PolVar].equalsIgnoreCase("although") || sentenceWords[PolVar].equalsIgnoreCase("oddly")) {
                                                                 negPol = -1;
                                                             }
                                                         Integer val = negPol * ((Integer) opinionToPolarityMap1.get(key));
@@ -419,13 +397,13 @@ public class AspectExtractionApp {
                     //Rule 4.1
                     for (String name : opinionToPolarityMap1.keySet()) {
                         String key = name.toString();
-                        for (int posi = 0; posi < word.length; posi++) {
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("JJ") == true || wordPOS[posi].equalsIgnoreCase("JJR") == true || wordPOS[posi].equalsIgnoreCase("JJS") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && depMatrix[i][0].toLowerCase().contains("conj")) {
-                                        String tword = depMatrix[i][2];
-                                        for (int loopi = 0; loopi < word.length; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                        for (int posi = 0; posi < sentenceWords.length; posi++) {
+                            if (key.equalsIgnoreCase(sentenceWords[posi]) == true && (sentenceWordsPos[posi].equalsIgnoreCase("JJ") == true || sentenceWordsPos[posi].equalsIgnoreCase("JJR") == true || sentenceWordsPos[posi].equalsIgnoreCase("JJS") == true)) {
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posi]) && depMatrix[depMatrixRowI][0].toLowerCase().contains("conj")) {
+                                        String tword = depMatrix[depMatrixRowI][2];
+                                        for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                 if (opinionToPolarityMap2.containsKey(tword)) {
                                                   /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
                                                   opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
@@ -439,10 +417,10 @@ public class AspectExtractionApp {
                                         }
 
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && depMatrix[i][0].toLowerCase().contains("conj")) {
-                                        String tword = depMatrix[i][1];
-                                        for (int loopi = 0; loopi < word.length; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posi]) && depMatrix[depMatrixRowI][0].toLowerCase().contains("conj")) {
+                                        String tword = depMatrix[depMatrixRowI][1];
+                                        for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                 if (opinionToPolarityMap2.containsKey(tword)) {
 										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
 										          opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
@@ -483,18 +461,18 @@ public class AspectExtractionApp {
                     ////Rule 3.1
                     for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
-                        for (int posi = 0; posi < word.length; posi++) {
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("NN") == true || wordPOS[posi].equalsIgnoreCase("NNS") == true || wordPOS[posi].equalsIgnoreCase("NNP") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && depMatrix[i][0].toLowerCase().contains("conj")) {
-                                        String tword = depMatrix[i][2];
-                                        for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                    tword = word[loopi - 1] + " " + tword;
+                        for (int posi = 0; posi < sentenceWords.length; posi++) {
+                            if (key.equalsIgnoreCase(sentenceWords[posi]) == true && (sentenceWordsPos[posi].equalsIgnoreCase("NN") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNS") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNP") == true)) {
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posi]) && depMatrix[depMatrixRowI][0].toLowerCase().contains("conj")) {
+                                        String tword = depMatrix[depMatrixRowI][2];
+                                        for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                    tword = sentenceWords[loopi - 1] + " " + tword;
                                                 }
-                                                if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                    tword = tword + " " + word[loopi + 1];
+                                                if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                    tword = tword + " " + sentenceWords[loopi + 1];
                                                 }
                                                 if (featureToCountMap2.containsKey(tword)) {
                                                     Integer counter = ((Integer) featureToCountMap2.get(tword));
@@ -507,15 +485,15 @@ public class AspectExtractionApp {
                                         }
 
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && depMatrix[i][0].toLowerCase().contains("conj")) {
-                                        String tword = depMatrix[i][1];
-                                        for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNP") || wordPOS[loopi].equalsIgnoreCase("NNS"))) {
-                                                if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                    tword = word[loopi - 1] + " " + tword;
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posi]) && depMatrix[depMatrixRowI][0].toLowerCase().contains("conj")) {
+                                        String tword = depMatrix[depMatrixRowI][1];
+                                        for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS"))) {
+                                                if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                    tword = sentenceWords[loopi - 1] + " " + tword;
                                                 }
-                                                if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                    tword = tword + " " + word[loopi + 1];
+                                                if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                    tword = tword + " " + sentenceWords[loopi + 1];
                                                 }
                                                 if (featureToCountMap2.containsKey(tword)) {
                                                     Integer counter = ((Integer) featureToCountMap2.get(tword));
@@ -554,23 +532,23 @@ public class AspectExtractionApp {
 
                     for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
-                        for (int posi = 0; posi < word.length; posi++) {
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("NN") == true || wordPOS[posi].equalsIgnoreCase("NNP") == true || wordPOS[posi].equalsIgnoreCase("NNS") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj"))) {
-                                        String tword = depMatrix[i][2];
+                        for (int posi = 0; posi < sentenceWords.length; posi++) {
+                            if (key.equalsIgnoreCase(sentenceWords[posi]) == true && (sentenceWordsPos[posi].equalsIgnoreCase("NN") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNP") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNS") == true)) {
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj"))) {
+                                        String tword = depMatrix[depMatrixRowI][2];
 
-                                        for (int j = 0; j < p; j++) {
+                                        for (int j = 0; j < depMatrixRowCount; j++) {
                                             if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][2];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap2.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap2.get(tword2));
@@ -588,13 +566,13 @@ public class AspectExtractionApp {
                                             if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][1];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap2.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap2.get(tword2));
@@ -610,20 +588,20 @@ public class AspectExtractionApp {
 
                                         }
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj"))) {
-                                        String tword = depMatrix[i][1];///
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj"))) {
+                                        String tword = depMatrix[depMatrixRowI][1];///
 
-                                        for (int j = 0; j < p; j++) {
+                                        for (int j = 0; j < depMatrixRowCount; j++) {
                                             if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][2];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap2.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap2.get(tword2));
@@ -639,13 +617,13 @@ public class AspectExtractionApp {
                                             if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj"))) {
                                                 String tword2 = depMatrix[j][1];
 
-                                                for (int loopi = 1; loopi < word.length - 1; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("NN") || wordPOS[loopi].equalsIgnoreCase("NNS") || wordPOS[loopi].equalsIgnoreCase("NNP"))) {
-                                                        if (wordPOS[loopi - 1].equalsIgnoreCase("NN") || wordPOS[loopi - 1].equalsIgnoreCase("NNS") || wordPOS[loopi - 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = word[loopi - 1] + " " + tword2;
+                                                for (int loopi = 1; loopi < sentenceWords.length - 1; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("NN") || sentenceWordsPos[loopi].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi].equalsIgnoreCase("NNP"))) {
+                                                        if (sentenceWordsPos[loopi - 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi - 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = sentenceWords[loopi - 1] + " " + tword2;
                                                         }
-                                                        if (wordPOS[loopi + 1].equalsIgnoreCase("NN") || wordPOS[loopi + 1].equalsIgnoreCase("NNS") || wordPOS[loopi + 1].equalsIgnoreCase("NNP")) {
-                                                            tword2 = tword2 + " " + word[loopi + 1];
+                                                        if (sentenceWordsPos[loopi + 1].equalsIgnoreCase("NN") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNS") || sentenceWordsPos[loopi + 1].equalsIgnoreCase("NNP")) {
+                                                            tword2 = tword2 + " " + sentenceWords[loopi + 1];
                                                         }
                                                         if (featureToCountMap2.containsKey(tword2)) {
                                                             Integer counter = ((Integer) featureToCountMap2.get(tword2));
@@ -696,14 +674,14 @@ public class AspectExtractionApp {
 
                     for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
-                        for (int posi = 0; posi < word.length; posi++) {
-                            // System.out.println(word[posi]);
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("NN") == true || wordPOS[posi].equalsIgnoreCase("NNP") == true || wordPOS[posi].equalsIgnoreCase("NNS") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
-                                        String tword = depMatrix[i][2];
-                                        for (int loopi = 0; loopi < word.length; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                        for (int posi = 0; posi < sentenceWords.length; posi++) {
+                            // System.out.println(sentenceWords[posi]);
+                            if (key.equalsIgnoreCase(sentenceWords[posi]) == true && (sentenceWordsPos[posi].equalsIgnoreCase("NN") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNP") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNS") == true)) {
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
+                                        String tword = depMatrix[depMatrixRowI][2];
+                                        for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                 if (opinionToPolarityMap2.containsKey(tword)) {
                                                 } else {
 
@@ -723,10 +701,10 @@ public class AspectExtractionApp {
                                         }
 
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
-                                        String tword = depMatrix[i][1];
-                                        for (int loopi = 0; loopi < word.length; loopi++) {
-                                            if (tword.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
+                                        String tword = depMatrix[depMatrixRowI][1];
+                                        for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                            if (tword.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                 if (opinionToPolarityMap2.containsKey(tword)) {
 										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword));
 										          opinionToPolarityMap2.put(tword, new Integer(counter +1));*/
@@ -758,19 +736,19 @@ public class AspectExtractionApp {
                     for (String name : featureToCountMap1.keySet()) {
                         String key = name.toString();
                         // System.out.println(op[0]);
-                        for (int posi = 0; posi < word.length; posi++) {
-                            // System.out.println(word[posi]);
-                            if (key.equalsIgnoreCase(word[posi]) == true && (wordPOS[posi].equalsIgnoreCase("NN") == true || wordPOS[posi].equalsIgnoreCase("NNP") == true || wordPOS[posi].equalsIgnoreCase("NNS") == true)) {
-                                for (i = 0; i < p; i++) {
-                                    if (depMatrix[i][1].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
-                                        String tword = depMatrix[i][2];
+                        for (int posi = 0; posi < sentenceWords.length; posi++) {
+                            // System.out.println(sentenceWords[posi]);
+                            if (key.equalsIgnoreCase(sentenceWords[posi]) == true && (sentenceWordsPos[posi].equalsIgnoreCase("NN") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNP") == true || sentenceWordsPos[posi].equalsIgnoreCase("NNS") == true)) {
+                                for (depMatrixRowI = 0; depMatrixRowI < depMatrixRowCount; depMatrixRowI++) {
+                                    if (depMatrix[depMatrixRowI][1].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
+                                        String tword = depMatrix[depMatrixRowI][2];
 
-                                        for (int j = 0; j < p; j++) {
-                                            if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
+                                        for (int j = 0; j < depMatrixRowCount; j++) {
+                                            if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
                                                 String tword2 = depMatrix[j][2];
 
-                                                for (int loopi = 0; loopi < word.length; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                                                for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                         if (opinionToPolarityMap2.containsKey(tword2)) {
 										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
 										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
@@ -789,11 +767,11 @@ public class AspectExtractionApp {
                                                 }
 
                                             }
-                                            if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
+                                            if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
                                                 String tword2 = depMatrix[j][1];
 
-                                                for (int loopi = 0; loopi < word.length; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                                                for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                         if (opinionToPolarityMap2.containsKey(tword2)) {
 										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
 										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
@@ -815,15 +793,15 @@ public class AspectExtractionApp {
 
                                         }
                                     }
-                                    if (depMatrix[i][2].equalsIgnoreCase(word[posi]) && (depMatrix[i][0].equalsIgnoreCase("amod") || depMatrix[i][0].equalsIgnoreCase("nsubj") || depMatrix[i][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
-                                        String tword = depMatrix[i][1];///
+                                    if (depMatrix[depMatrixRowI][2].equalsIgnoreCase(sentenceWords[posi]) && (depMatrix[depMatrixRowI][0].equalsIgnoreCase("amod") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("nsubj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
+                                        String tword = depMatrix[depMatrixRowI][1];///
 
-                                        for (int j = 0; j < p; j++) {
-                                            if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
+                                        for (int j = 0; j < depMatrixRowCount; j++) {
+                                            if (depMatrix[j][1].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
                                                 String tword2 = depMatrix[j][2];
 
-                                                for (int loopi = 0; loopi < word.length; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                                                for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                         if (opinionToPolarityMap2.containsKey(tword2)) {
 										    	 /* Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
 										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
@@ -842,11 +820,11 @@ public class AspectExtractionApp {
                                                 }
 
                                             }
-                                            if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[i][0].equalsIgnoreCase("depTree"))) {
+                                            if (depMatrix[j][2].equalsIgnoreCase(tword) && (depMatrix[j][0].equalsIgnoreCase("amod") || depMatrix[j][0].equalsIgnoreCase("nsubj") || depMatrix[j][0].equalsIgnoreCase("dobj") || depMatrix[depMatrixRowI][0].equalsIgnoreCase("depTreeString"))) {
                                                 String tword2 = depMatrix[j][1];
 
-                                                for (int loopi = 0; loopi < word.length; loopi++) {
-                                                    if (tword2.equalsIgnoreCase(word[loopi]) && (wordPOS[loopi].equalsIgnoreCase("JJ") || wordPOS[loopi].equalsIgnoreCase("JJR") || wordPOS[loopi].equalsIgnoreCase("JJS"))) {
+                                                for (int loopi = 0; loopi < sentenceWords.length; loopi++) {
+                                                    if (tword2.equalsIgnoreCase(sentenceWords[loopi]) && (sentenceWordsPos[loopi].equalsIgnoreCase("JJ") || sentenceWordsPos[loopi].equalsIgnoreCase("JJR") || sentenceWordsPos[loopi].equalsIgnoreCase("JJS"))) {
                                                         if (opinionToPolarityMap2.containsKey(tword2)) {
 										    	  /*Integer counter = ((Integer)opinionToPolarityMap2.get(tword2));
 										          opinionToPolarityMap2.put(tword2, new Integer(counter +1));*/
@@ -1290,5 +1268,70 @@ public class AspectExtractionApp {
         bufferedReader.close();
     }
 
+    private class GenerateDepMatrix {
+        private String     depTreeString;
+        private String[][] depMatrix;
+        private int        p;
+
+        public GenerateDepMatrix(String depTreeString) {
+            this.depTreeString = depTreeString;
+        }
+
+        public String[][] getDepMatrix() {
+            return depMatrix;
+        }
+
+        public int getP() {
+            return p;
+        }
+
+        public GenerateDepMatrix invoke() {
+            int i;
+            int spaceCount = 0;
+            for (i = 1; i < depTreeString.length() - 1; i++) {
+                if (depTreeString.charAt(i) == ' ') {
+                    spaceCount++;
+                }
+            }
+            spaceCount = spaceCount / 2 + 1;
+            logger.info("spaceCount: {}", spaceCount);
+
+            depMatrix = new String[spaceCount][3];
+            int flag = 0;
+            p = 0;
+            String temp = "";
+            String temp1 = "";
+            String temp3 = "";
+            for (i = 1; i < depTreeString.length() - 1; i++) {
+                if (depTreeString.charAt(i) != '(' && flag == 0) {
+                    temp3 += depTreeString.charAt(i);
+                } else if (depTreeString.charAt(i) == '(' && flag == 0) {
+                    flag = 1;
+                } else if (depTreeString.charAt(i) != ',' && flag == 1) {
+                    temp += depTreeString.charAt(i);
+                } else if (depTreeString.charAt(i) == ',' && flag == 1) {
+                    flag = 2;
+                } else if (depTreeString.charAt(i) != ')' && flag == 2) {
+                    temp1 += depTreeString.charAt(i);
+                } else if (depTreeString.charAt(i) == ')' && flag == 2) {
+                    i += 2;
+                    flag = 0;
+                    // System.out.println(temp3+"$"+temp.trim()+"$"+temp1.trim());
+                    //take the words
+                    depMatrix[p][0] = temp3.trim();
+                    depMatrix[p][1] = temp.substring(0, temp.lastIndexOf('-')).trim();
+                    depMatrix[p++][2] = temp1.substring(0, temp1.lastIndexOf('-')).trim();
+                    temp = "";
+                    temp1 = "";
+                    temp3 = "";
+                }
+                //else
+                //  continue;
+            }
+            for (i = 0; i < p; i++)
+                System.out.println(depMatrix[i][0] + " " + depMatrix[i][1] + " " + depMatrix[i][2] + " ");
+            return this;
+        }
+    }
 }
 
